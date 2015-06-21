@@ -1,5 +1,6 @@
 require "json"
 require "date"
+require "sinatra"
 
 class Car
 	def initialize(id, price_per_day, price_per_km)
@@ -227,36 +228,37 @@ class Rental
 	end
 end
 
-cars = []
-rentals = []
-modifications = []
-input = File.read("data.json")
-input_hash = JSON.parse(input)
+post '/:file_name' do
+	cars = []
+	rentals = []
+	modifications = []
+	request.body.rewind
+	input_hash = JSON.parse(request.body.read)
 
-input_hash['cars'].each do |car|
-	   cars << Car.new(car['id'], car['price_per_day'], car['price_per_km'])
-end
-
-input_hash['rentals'].each do |rental|
-	rentals << Rental.new(rental['id'], rental['car_id'], rental['start_date'], rental['end_date'], rental['distance'], rental['deductible_reduction'])
-end
-
-input_hash['rental_modifications'].each do |rental_mod|
-	modifications << RentalModification.new(rental_mod['id'], rental_mod['rental_id'],  
-						rental_mod['start_date'], rental_mod['end_date'], rental_mod['distance'], rental_mod['deductible_reduction'])
-end
-
-output = { 'rental_modifications' => [] }
-rentals.each do |rental|
-	rental.find_car_price(cars)
-	rental.calculate_commission()
-	rental.add_rental_adjustments(modifications)
-	if rental.adjustment_length > 0 then	
-		output['rental_modifications'] <<  { :id => rental.adjustment_id, :rental_id => rental.id, :actions => rental.calculate_rental_modifications(cars) }
+	input_hash['cars'].each do |car|
+		   cars << Car.new(car['id'], car['price_per_day'], car['price_per_km'])
 	end
-end
 
-output_file = File.open("my_output.json", 'w')
-output_file.write(JSON.pretty_generate(output))
-output_file.close
+	input_hash['rentals'].each do |rental|
+		rentals << Rental.new(rental['id'], rental['car_id'], rental['start_date'], rental['end_date'], rental['distance'], rental['deductible_reduction'])
+	end
 
+	input_hash['rental_modifications'].each do |rental_mod|
+		modifications << RentalModification.new(rental_mod['id'], rental_mod['rental_id'],  
+							rental_mod['start_date'], rental_mod['end_date'], rental_mod['distance'], rental_mod['deductible_reduction'])
+	end
+
+	output = { 'rental_modifications' => [] }
+	rentals.each do |rental|
+		rental.find_car_price(cars)
+		rental.calculate_commission()
+		rental.add_rental_adjustments(modifications)
+		if rental.adjustment_length > 0 then	
+			output['rental_modifications'] <<  { :id => rental.adjustment_id, :rental_id => rental.id, :actions => rental.calculate_rental_modifications(cars) }
+		end
+	end
+
+	output_file = File.open(params['file_name'], 'w')
+	output_file.write(JSON.pretty_generate(output))
+	output_file.close
+	end 

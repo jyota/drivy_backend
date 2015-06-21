@@ -1,5 +1,6 @@
 require "json"
 require "date"
+require "sinatra"
 
 class Car
 	def initialize(id, price_per_day, price_per_km)
@@ -120,25 +121,26 @@ class Rental
 	end
 end
 
-cars = []
-rentals = []
-input = File.read("data.json")
-input_hash = JSON.parse(input)
+post '/:file_name' do
+	cars = []
+	rentals = []
+	request.body.rewind
+	input_hash = JSON.parse(request.body.read)
 
-input_hash['cars'].each do |car|
-	   cars << Car.new(car['id'], car['price_per_day'], car['price_per_km'])
+	input_hash['cars'].each do |car|
+		   cars << Car.new(car['id'], car['price_per_day'], car['price_per_km'])
+	end
+
+	input_hash['rentals'].each do |rental|
+		rentals << Rental.new(rental['id'], rental['car_id'], rental['start_date'], rental['end_date'], rental['distance'], rental['deductible_reduction'])
+	end
+
+	output = { 'rentals' => [] }
+	rentals.each do |rental|
+		output['rentals'] <<  { :id => rental.get_id(), :price => rental.find_car_price(cars), :options => rental.return_options(), :commission => rental.return_commission() }
+	end
+
+	output_file = File.open(params['file_name'], 'w')
+	output_file.write(JSON.pretty_generate(output))
+	output_file.close
 end
-
-input_hash['rentals'].each do |rental|
-	rentals << Rental.new(rental['id'], rental['car_id'], rental['start_date'], rental['end_date'], rental['distance'], rental['deductible_reduction'])
-end
-
-output = { 'rentals' => [] }
-rentals.each do |rental|
-	output['rentals'] <<  { :id => rental.get_id(), :price => rental.find_car_price(cars), :options => rental.return_options(), :commission => rental.return_commission() }
-end
-
-output_file = File.open("my_output.json", 'w')
-output_file.write(JSON.pretty_generate(output))
-output_file.close
-
